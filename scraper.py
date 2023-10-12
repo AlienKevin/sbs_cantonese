@@ -2,7 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.chrome.options import Options
 import os
 import json
@@ -22,7 +22,7 @@ time.sleep(2)
 driver.refresh()
 time.sleep(2)
 
-max_items = 2000
+max_items = 5000
 
 if os.path.isfile("metadata.jsonl"):
     with open("metadata.jsonl", "r") as output_file:
@@ -42,7 +42,20 @@ for i in range(max_items):
         # fetch more items
         load_more_button_path ="button[data-testid='episodes-load-more-button']"
         load_more_button = driver.find_element(by=By.CSS_SELECTOR, value=load_more_button_path)
-        load_more_button.click()
+        try:
+            load_more_button.click()
+        except:
+            # close any popup
+            try:
+                background = driver.find_element(by=By.CSS_SELECTOR, value="div[style='opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;']")
+                background.click()
+            except:
+                # do nothing if the obstructing element can't be found
+                pass
+            # Try clicking again
+            load_more_button = driver.find_element(by=By.CSS_SELECTOR, value=load_more_button_path)
+            load_more_button.click()
+        
         driver.implicitly_wait(0.5)
         wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, load_more_button_path)))
         radio_items = driver.find_elements(by=By.CSS_SELECTOR, value=radio_items_path)
@@ -87,12 +100,21 @@ for i in range(max_items):
 
 
     # Adding explicit wait for menu items to appear
-    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[data-testid='view more']")))
+    # wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[data-testid='view more']")))
 
-    view_more_link = driver.find_element(by=By.CSS_SELECTOR, value="a[data-testid='view more']").get_attribute('href')
+    try:
+        view_more_link = driver.find_element(by=By.CSS_SELECTOR, value="a[data-testid='view more']").get_attribute('href')
+    except StaleElementReferenceException:
+        # Element is stale. Find it again and retry.
+        time.sleep(1)
+        view_more_link = driver.find_element(by=By.CSS_SELECTOR, value="a[data-testid='view more']").get_attribute('href')
     scraped_item["view_more_link"] = view_more_link
 
-    download_link = driver.find_element(by=By.CSS_SELECTOR, value="a[data-testid='download']").get_attribute('href')
+    try:
+        download_link = driver.find_element(by=By.CSS_SELECTOR, value="a[data-testid='download']").get_attribute('href')
+    except NoSuchElementException:
+        # Skip potentially malformated item
+        continue
     scraped_item["download_link"] = download_link
 
     output_file.write(json.dumps(scraped_item, ensure_ascii=False) + "\n")
