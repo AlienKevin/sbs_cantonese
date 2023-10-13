@@ -12,6 +12,11 @@ max_retries = 3
 with open("metadata.jsonl", "r") as data_file:
     for i, line in enumerate(data_file.readlines()):
         data = json.loads(line)
+        view_more_link = data.get("view_more_link", "")
+        id = view_more_link.split("/")[-1]
+        if len(id) != 9:
+            print(f"invalid view more link: {view_more_link}")
+            continue
         download_link = data.get("download_link", "")
 
         # Initialize the retry counter
@@ -24,7 +29,7 @@ with open("metadata.jsonl", "r") as data_file:
                 result.raise_for_status()  # Raise an exception for HTTP errors
 
                 # If successful, write the file and break the loop
-                with open(audio_dir / f"{i}.mp3", 'wb+') as f:
+                with open(audio_dir / f"{id}.mp3", 'wb+') as f:
                     f.write(result.content)
                 break
             except requests.RequestException as e:
